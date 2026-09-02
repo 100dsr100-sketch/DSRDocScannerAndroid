@@ -122,17 +122,17 @@
       <div class="t1">DSR Systems</div>
       <div class="t2">DSR Doc Scanner</div>
     </div>
-    <div class="ver">Version 1a</div>
+    <div class="ver">Version 1b</div>
   </div>
 
   <div class="scroll">
     <!-- 1. source -->
     <div class="sect-label">Add pages</div>
     <div class="row">
-      <label class="btn big" for="inGallery">&#128247; Gallery</label>
-      <label class="btn big" for="inStorage">&#128193; Storage</label>
+      <label class="btn big" for="inGallery">&#128193; Gallery</label>
+      <label class="btn big" for="inCamera">&#128247; Camera</label>
       <input id="inGallery" type="file" accept="image/*,.heic,.heif" multiple>
-      <input id="inStorage" type="file" multiple>
+      <input id="inCamera" type="file" accept="image/*" capture="environment">
     </div>
     <div class="row wrap" style="padding-top:0;">
       <button class="chip on" id="chDeskew" type="button">Deskew</button>
@@ -141,7 +141,7 @@
 
     <!-- 2. file list -->
     <div class="sect-label">Documents (<span id="count">0</span>)</div>
-    <div class="strip" id="strip"><div class="empty">No pages yet - tap Gallery or Storage.</div></div>
+    <div class="strip" id="strip"><div class="empty">No pages yet - tap Gallery or Camera.</div></div>
 
     <!-- 3. preview -->
     <div class="sect-label">Preview</div>
@@ -169,15 +169,15 @@
     <!-- 5. output -->
     <div class="sect-label">Save as PDF</div>
     <div class="row wrap">
-      <button class="chip on" id="chCombine" type="button">Combine into one</button>
+      <button class="chip on" id="chCombine" type="button">Combine all into one PDF</button>
     </div>
     <div class="row">
-      <button id="btnPdf"    class="big" type="button">Save PDF</button>
-      <button id="btnPdfAll" class="big" type="button">Save PDFs</button>
+      <button id="btnPdf"    class="big" type="button">This page &rarr; PDF</button>
+      <button id="btnPdfAll" class="big" type="button">All pages &rarr; PDF</button>
     </div>
     <div class="row">
-      <button id="btnImg"    class="sec" type="button">Save image</button>
-      <button id="btnImgAll" class="sec" type="button">Save images</button>
+      <button id="btnImg"    class="sec" type="button">This page &rarr; image</button>
+      <button id="btnImgAll" class="sec" type="button">All pages &rarr; images</button>
     </div>
     <div style="height:6px;"></div>
   </div>
@@ -248,7 +248,7 @@
     var strip = $('strip');
     strip.innerHTML = '';
     $('count').textContent = docs.length;
-    if (!docs.length) { strip.innerHTML = '<div class="empty">No pages yet - tap Gallery or Storage.</div>'; updateNav(); return; }
+    if (!docs.length) { strip.innerHTML = '<div class="empty">No pages yet - tap Gallery or Camera.</div>'; updateNav(); return; }
     docs.forEach(function (d, i) {
       var el = document.createElement('div');
       el.className = 'thumb' + (i === sel ? ' sel' : '');
@@ -368,6 +368,11 @@
     $('btnPrev').disabled = !(haveSel() && sel > 0);
     $('btnNext').disabled = !(haveSel() && sel < docs.length - 1);
     document.querySelector('.pv-tools').style.display = haveSel() ? 'flex' : 'none';
+    $('btnPdfAll').innerHTML = multi ? ('All ' + docs.length + ' pages &rarr; PDF') : 'All pages &rarr; PDF';
+    $('btnImgAll').innerHTML = multi ? ('All ' + docs.length + ' &rarr; images') : 'All pages &rarr; images';
+    $('btnPdf').disabled = $('btnImg').disabled = !haveSel();
+    $('btnPdfAll').disabled = $('btnImgAll').disabled = $('btnProcAll').disabled = !docs.length;
+    $('btnProc').disabled = $('btnReset').disabled = !haveSel();
   }
 
   /* ---------- gestures ---------- */
@@ -448,7 +453,38 @@
     var a = document.createElement('a');
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
+  }
+
+  // Save the file AND open it in the system PDF viewer / share sheet.
+  async function deliver(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+
+    var handled = false;
+    try {
+      var file = new File([blob], name, { type: blob.type || 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: name });
+        handled = true;
+      }
+    } catch (e) { handled = true; }   // user dismissed the share sheet - fine, it's saved
+    if (!handled) {
+      var w = null;
+      try { w = window.open(url, '_blank'); } catch (e) {}
+      if (!w) {
+        var st = $('status');
+        st.innerHTML = 'Saved <b>' + name + '</b> &nbsp;&mdash;&nbsp; <a href="#" style="color:var(--gold);text-decoration:underline">open</a>';
+        var lnk = st.querySelector('a');
+        lnk.onclick = function (ev) { ev.preventDefault(); if (!window.open(url, '_blank')) location.href = url; };
+        setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+        return;
+      }
+    }
+    status('Saved ' + name);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
   }
 
   function docToCanvas(d) {
@@ -468,14 +504,13 @@
 
   async function savePdf(indices, outName) {
     if (!indices.length) return;
-    busy(true, 'Building PDF…');
+    busy(true, indices.length > 1 ? ('Building ' + indices.length + '-page PDF…') : 'Building PDF…');
     await yield_();
     var pages = [];
     for (var i = 0; i < indices.length; i++) pages.push(await canvasJpeg(docToCanvas(docs[indices[i]]), 0.9));
     var blob = E.buildPdf(pages);
     busy(false);
-    download(blob, outName);
-    status('Saved ' + outName);
+    await deliver(blob, outName);
   }
 
   async function saveImages(indices) {
@@ -497,7 +532,7 @@
   /* ---------- wire up ---------- */
 
   $('inGallery').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
-  $('inStorage').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
+  $('inCamera').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
 
   $('chDeskew').addEventListener('click', function () {
     opt.deskew = !opt.deskew; this.classList.toggle('on', opt.deskew);
