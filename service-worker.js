@@ -1,7 +1,7 @@
 /* DSR Doc Scanner - offline shell cache.
    HTML/navigations: network-first (so updates show as soon as you're online).
    Other same-origin assets: cache-first with background refresh. */
-var CACHE = 'dsr-doc-scanner-v2';
+var CACHE = 'dsr-doc-scanner-v3';
 var SHELL = ['./', './index.html', './scanengine.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (e) {

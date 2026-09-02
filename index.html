@@ -122,7 +122,7 @@
       <div class="t1">DSR Systems</div>
       <div class="t2">DSR Doc Scanner</div>
     </div>
-    <div class="ver">Version 1b</div>
+    <div class="ver">Version 1c</div>
   </div>
 
   <div class="scroll">
@@ -456,35 +456,37 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 8000);
   }
 
-  // Save the file AND open it in the system PDF viewer / share sheet.
-  async function deliver(blob, name) {
+  // Grab a browser tab now, while the button tap still counts as a user
+  // gesture, so we can drop the finished PDF into it without a popup block.
+  function openBlank() { try { return window.open('', '_blank'); } catch (e) { return null; } }
+
+  // Save the file to the phone's storage (Downloads) AND open it in the
+  // default PDF viewer - no share sheet.
+  function deliver(blob, name, win) {
     var url = URL.createObjectURL(blob);
+
     var a = document.createElement('a');
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
 
-    var handled = false;
-    try {
-      var file = new File([blob], name, { type: blob.type || 'application/pdf' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: name });
-        handled = true;
-      }
-    } catch (e) { handled = true; }   // user dismissed the share sheet - fine, it's saved
-    if (!handled) {
-      var w = null;
-      try { w = window.open(url, '_blank'); } catch (e) {}
-      if (!w) {
-        var st = $('status');
-        st.innerHTML = 'Saved <b>' + name + '</b> &nbsp;&mdash;&nbsp; <a href="#" style="color:var(--gold);text-decoration:underline">open</a>';
-        var lnk = st.querySelector('a');
-        lnk.onclick = function (ev) { ev.preventDefault(); if (!window.open(url, '_blank')) location.href = url; };
+    if (win && !win.closed) {
+      try {
+        win.location.href = url;
+        status('Saved to your files and opened: ' + name);
         setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
         return;
-      }
+      } catch (e) { try { win.close(); } catch (_) { } }
     }
-    status('Saved ' + name);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+
+    // could not pre-open a tab - give a one-tap Open
+    var st = $('status');
+    st.innerHTML = '&#10003; Saved <b>' + name + '</b> &nbsp; ' +
+      '<a href="#" style="color:var(--gold);text-decoration:underline;font-weight:700">Open</a>';
+    st.querySelector('a').onclick = function (ev) {
+      ev.preventDefault();
+      if (!window.open(url, '_blank')) location.href = url;
+    };
+    setTimeout(function () { URL.revokeObjectURL(url); }, 300000);
   }
 
   function docToCanvas(d) {
@@ -502,15 +504,15 @@
     return new Promise(function (res) { c.toBlob(function (b) { res(b); }, 'image/png'); });
   }
 
-  async function savePdf(indices, outName) {
-    if (!indices.length) return;
+  async function savePdf(indices, outName, win) {
+    if (!indices.length) { if (win) try { win.close(); } catch (e) {} return; }
     busy(true, indices.length > 1 ? ('Building ' + indices.length + '-page PDF…') : 'Building PDF…');
     await yield_();
     var pages = [];
     for (var i = 0; i < indices.length; i++) pages.push(await canvasJpeg(docToCanvas(docs[indices[i]]), 0.9));
     var blob = E.buildPdf(pages);
     busy(false);
-    await deliver(blob, outName);
+    deliver(blob, outName, win);
   }
 
   async function saveImages(indices) {
@@ -569,14 +571,18 @@
 
   $('btnPdf').addEventListener('click', function () {
     if (!haveSel()) return;
-    savePdf([sel], baseName(docs[sel].name) + '_scan.pdf');
+    savePdf([sel], baseName(docs[sel].name) + '_scan.pdf', openBlank());
   });
   $('btnPdfAll').addEventListener('click', function () {
     if (!docs.length) return;
-    if (opt.combine) savePdf(allIdx(), baseName(docs[0].name) + '_scan_combined.pdf');
-    else (async function () {
-      for (var i = 0; i < docs.length; i++) await savePdf([i], baseName(docs[i].name) + '_scan.pdf');
-    })();
+    if (opt.combine) {
+      savePdf(allIdx(), baseName(docs[0].name) + '_scan_combined.pdf', openBlank());
+    } else {
+      (async function () {
+        for (var i = 0; i < docs.length; i++) await savePdf([i], baseName(docs[i].name) + '_scan.pdf', null);
+        status('Saved ' + docs.length + ' PDF file(s) to your files.');
+      })();
+    }
   });
   $('btnImg').addEventListener('click', function () { if (haveSel()) saveImages([sel]); });
   $('btnImgAll').addEventListener('click', function () { saveImages(allIdx()); });
