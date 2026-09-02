@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="DSR Doc Scanner">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>DSR Doc Scanner</title>
+<style>
+  :root{
+    --gold:#FFD700; --gold-deep:#D4AF42; --bg:#000; --panel:#111;
+    --panel2:#1a1a1a; --preview:#1c1c1c; --line:#3a2f10;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:var(--gold);
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+    color:#eee; overscroll-behavior:none;
+  }
+  #app{
+    background:var(--bg); border-radius:10px;
+    height:calc(100% - 10px); margin:5px;
+    display:flex; flex-direction:column; overflow:hidden;
+    border:2px solid var(--gold-deep);
+  }
+
+  /* banner */
+  .banner{display:flex; align-items:center; gap:10px; padding:8px 12px; background:#000; border-bottom:1px solid var(--line);}
+  .banner img{width:38px; height:38px;}
+  .banner .t1{color:var(--gold); font-weight:700; font-size:16px; line-height:1.1;}
+  .banner .t2{color:var(--gold-deep); font-size:11px;}
+  .banner .ver{margin-left:auto; color:var(--gold); font-size:10px; font-weight:700;}
+
+  .scroll{flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+
+  .row{display:flex; gap:8px; padding:8px 10px;}
+  .row.wrap{flex-wrap:wrap;}
+
+  button, .btn{
+    appearance:none; border:1px solid var(--gold); background:var(--panel);
+    color:var(--gold); border-radius:8px; padding:11px 12px; font-size:13px;
+    font-family:inherit; font-weight:600; cursor:pointer; flex:1 1 auto;
+    display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px;
+  }
+  button:active, .btn:active{background:var(--panel2);}
+  button:disabled{opacity:.4;}
+  .btn.big{font-size:15px; padding:14px 12px;}
+  .btn.sec{border-color:var(--gold-deep); color:var(--gold-deep); font-size:12px; min-height:38px; padding:8px 10px;}
+
+  .chip{
+    flex:0 0 auto; border:1px solid var(--gold); background:var(--panel);
+    color:var(--gold); border-radius:999px; padding:8px 14px; font-size:12.5px; font-weight:600;
+  }
+  .chip.on{background:var(--gold); color:#000;}
+
+  /* file input labels styled as buttons */
+  input[type=file]{display:none;}
+
+  /* file list strip */
+  .strip{display:flex; gap:8px; padding:6px 10px; overflow-x:auto; -webkit-overflow-scrolling:touch; min-height:96px;}
+  .strip .empty{color:var(--gold-deep); font-size:12.5px; align-self:center; padding:0 4px;}
+  .thumb{
+    position:relative; flex:0 0 auto; width:64px; height:84px; border-radius:6px;
+    border:2px solid #333; background:#000; overflow:hidden;
+  }
+  .thumb.sel{border-color:var(--gold);}
+  .thumb canvas{width:100%; height:100%; object-fit:cover; display:block;}
+  .thumb .x{
+    position:absolute; top:-1px; right:-1px; width:20px; height:20px; line-height:18px;
+    text-align:center; background:#000; color:var(--gold); border:1px solid var(--gold);
+    border-radius:0 6px 0 6px; font-size:13px;
+  }
+  .thumb .n{position:absolute; left:0; right:0; bottom:0; font-size:9px; color:#ccc; background:rgba(0,0,0,.6); padding:1px 2px; white-space:nowrap; overflow:hidden;}
+
+  /* preview */
+  .preview{
+    position:relative; margin:6px 10px; border:1px solid var(--line); border-radius:8px;
+    background:var(--preview); height:44vh; min-height:220px; overflow:hidden; touch-action:none;
+  }
+  .preview canvas{position:absolute; left:0; top:0;}
+  .pv-tools{
+    position:absolute; left:50%; bottom:8px; transform:translateX(-50%);
+    display:flex; gap:4px; background:#2e2e2e; border-radius:8px; padding:3px;
+  }
+  .pv-tools button{
+    flex:0 0 auto; min-width:36px; min-height:34px; padding:4px 6px; font-size:15px;
+    border-color:#555; background:#111;
+  }
+  .pv-nav{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:34px; height:52px; font-size:20px; border-color:#555; background:rgba(20,20,20,.85);
+    min-height:0; padding:0;
+  }
+  .pv-nav.l{left:6px;} .pv-nav.r{right:6px;}
+
+  .sect-label{color:var(--gold-deep); font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; padding:6px 12px 0;}
+  .status{padding:8px 12px; color:var(--gold-deep); font-size:12px; border-top:1px solid var(--line); background:#000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  /* working overlay */
+  .busy{
+    position:fixed; inset:0; background:rgba(0,0,0,.72); display:none;
+    align-items:center; justify-content:center; z-index:50; flex-direction:column; gap:14px;
+  }
+  .busy.show{display:flex;}
+  .busy .ring{width:44px; height:44px; border:4px solid #444; border-top-color:var(--gold); border-radius:50%; animation:spin .9s linear infinite;}
+  .busy .msg{color:var(--gold); font-size:13px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="banner">
+    <img src="icon.svg" alt="">
+    <div>
+      <div class="t1">DSR Systems</div>
+      <div class="t2">DSR Doc Scanner</div>
+    </div>
+    <div class="ver">Version 1a</div>
+  </div>
+
+  <div class="scroll">
+    <!-- 1. source -->
+    <div class="sect-label">Add pages</div>
+    <div class="row">
+      <label class="btn big" for="inGallery">&#128247; Gallery</label>
+      <label class="btn big" for="inStorage">&#128193; Storage</label>
+      <input id="inGallery" type="file" accept="image/*,.heic,.heif" multiple>
+      <input id="inStorage" type="file" multiple>
+    </div>
+    <div class="row wrap" style="padding-top:0;">
+      <button class="chip on" id="chDeskew" type="button">Deskew</button>
+      <button class="chip" id="chBW" type="button">Black &amp; white</button>
+    </div>
+
+    <!-- 2. file list -->
+    <div class="sect-label">Documents (<span id="count">0</span>)</div>
+    <div class="strip" id="strip"><div class="empty">No pages yet - tap Gallery or Storage.</div></div>
+
+    <!-- 3. preview -->
+    <div class="sect-label">Preview</div>
+    <div class="preview" id="preview">
+      <canvas id="pvCanvas"></canvas>
+      <button class="pv-nav l" id="btnPrev" type="button">&#8249;</button>
+      <button class="pv-nav r" id="btnNext" type="button">&#8250;</button>
+      <div class="pv-tools">
+        <button id="btnFit"  type="button" title="Fit">&#9214;</button>
+        <button id="btnZOut" type="button" title="Zoom out">&#8722;</button>
+        <button id="btnZIn"  type="button" title="Zoom in">+</button>
+        <button id="btnRotL" type="button" title="Rotate left">&#8634;</button>
+        <button id="btnRotR" type="button" title="Rotate right">&#8635;</button>
+      </div>
+    </div>
+
+    <!-- 4. process -->
+    <div class="sect-label">Process</div>
+    <div class="row">
+      <button id="btnProc"    class="big" type="button">Process</button>
+      <button id="btnProcAll" class="big" type="button">Process All</button>
+      <button id="btnReset"   type="button" style="flex:0 0 84px;">Reset</button>
+    </div>
+
+    <!-- 5. output -->
+    <div class="sect-label">Save as PDF</div>
+    <div class="row wrap">
+      <button class="chip on" id="chCombine" type="button">Combine into one</button>
+    </div>
+    <div class="row">
+      <button id="btnPdf"    class="big" type="button">Save PDF</button>
+      <button id="btnPdfAll" class="big" type="button">Save PDFs</button>
+    </div>
+    <div class="row">
+      <button id="btnImg"    class="sec" type="button">Save image</button>
+      <button id="btnImgAll" class="sec" type="button">Save images</button>
+    </div>
+    <div style="height:6px;"></div>
+  </div>
+
+  <div class="status" id="status">Add pages to begin.</div>
+</div>
+
+<div class="busy" id="busy"><div class="ring"></div><div class="msg" id="busyMsg">Working&hellip;</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="scanengine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.ScanEngine;
+  var docs = [], sel = -1;
+  var opt = { deskew: true, bw: false, combine: true };
+
+  // preview viewport
+  var view = { scale: 1, fit: 1, ox: 0, oy: 0, atFit: true };
+  var work = { canvas: document.createElement('canvas') };   // offscreen holding current work ImageData
+
+  var $ = function (id) { return document.getElementById(id); };
+  var status = function (s) { $('status').textContent = s; };
+
+  /* ---------- doc model ---------- */
+
+  function baseName(n) { return (n || 'scan').replace(/\.[^.]+$/, ''); }
+
+  function rebuild(i) {
+    var d = docs[i];
+    var img = E.cloneImage(d.orig);
+    for (var k = 0; k < (d.rot % 4 + 4) % 4; k++) img = E.rotate90(img, true);
+    var msg = '';
+    if (d.detected) { var r = E.detectDocument(img, opt.deskew); img = r.img; msg = r.msg; }
+    if (d.cleaned) img = E.cleanUpImage(img, opt.bw);
+    d.work = img;
+    d.msg = msg;
+  }
+
+  function busy(on, msg) {
+    $('busyMsg').textContent = msg || 'Working…';
+    $('busy').classList.toggle('show', !!on);
+  }
+  function yield_() { return new Promise(function (r) { setTimeout(r, 20); }); }
+
+  async function addFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    busy(true, 'Loading…');
+    await yield_();
+    var added = 0, err = '';
+    for (var f = 0; f < files.length; f++) {
+      try {
+        var id = await E.decodeToImageData(files[f]);
+        docs.push({ name: files[f].name || ('page' + (docs.length + 1)), orig: id, work: E.cloneImage(id), rot: 0, detected: false, cleaned: false, msg: '' });
+        added++;
+      } catch (e) { err = e && e.message ? e.message : String(e); }
+    }
+    busy(false);
+    if (added) { sel = docs.length - 1; renderStrip(); showSelected(); }
+    status(added ? (docs.length + ' page(s) loaded.') : ('Could not load: ' + err));
+  }
+
+  /* ---------- strip ---------- */
+
+  function renderStrip() {
+    var strip = $('strip');
+    strip.innerHTML = '';
+    $('count').textContent = docs.length;
+    if (!docs.length) { strip.innerHTML = '<div class="empty">No pages yet - tap Gallery or Storage.</div>'; updateNav(); return; }
+    docs.forEach(function (d, i) {
+      var el = document.createElement('div');
+      el.className = 'thumb' + (i === sel ? ' sel' : '');
+      var c = document.createElement('canvas');
+      var tw = 64, th = 84;
+      c.width = tw; c.height = th;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, tw, th);
+      drawImageDataScaled(ctx, d.work, tw, th, true);
+      el.appendChild(c);
+      var x = document.createElement('div'); x.className = 'x'; x.textContent = '×';
+      x.onclick = function (ev) { ev.stopPropagation(); removeDoc(i); };
+      el.appendChild(x);
+      var n = document.createElement('div'); n.className = 'n'; n.textContent = d.name;
+      el.appendChild(n);
+      el.onclick = function () { sel = i; renderStrip(); showSelected(); };
+      strip.appendChild(el);
+    });
+    updateNav();
+  }
+
+  function removeDoc(i) {
+    docs.splice(i, 1);
+    if (sel >= docs.length) sel = docs.length - 1;
+    renderStrip(); showSelected();
+    status(docs.length + ' page(s).');
+  }
+
+  /* ---------- preview render ---------- */
+
+  function drawImageDataScaled(ctx, imgData, w, h, cover) {
+    var oc = document.createElement('canvas');
+    oc.width = imgData.width; oc.height = imgData.height;
+    oc.getContext('2d').putImageData(imgData, 0, 0);
+    var s = cover ? Math.max(w / imgData.width, h / imgData.height)
+                  : Math.min(w / imgData.width, h / imgData.height);
+    var dw = imgData.width * s, dh = imgData.height * s;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(oc, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+
+  function haveSel() { return sel >= 0 && sel < docs.length; }
+
+  function showSelected() {
+    updateNav();
+    if (!haveSel()) { clearPreview(); return; }
+    var d = docs[sel];
+    work.canvas.width = d.work.width;
+    work.canvas.height = d.work.height;
+    work.canvas.getContext('2d').putImageData(d.work, 0, 0);
+    fitPreview();
+    if (d.msg) status(d.msg);
+  }
+
+  function clearPreview() {
+    var c = $('pvCanvas'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+  }
+
+  function previewSize() {
+    var p = $('preview');
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = p.clientWidth, h = p.clientHeight;
+    var c = $('pvCanvas');
+    if (c.width !== w * dpr || c.height !== h * dpr) {
+      c.width = w * dpr; c.height = h * dpr;
+      c.style.width = w + 'px'; c.style.height = h + 'px';
+    }
+    return { w: w, h: h, dpr: dpr };
+  }
+
+  function fitPreview() {
+    if (!haveSel()) return;
+    var ps = previewSize();
+    var iw = work.canvas.width, ih = work.canvas.height;
+    view.fit = Math.min(ps.w / iw, ps.h / ih);
+    if (view.fit > 1) view.fit = 1;
+    view.scale = view.fit; view.atFit = true;
+    view.ox = (ps.w - iw * view.scale) / 2;
+    view.oy = (ps.h - ih * view.scale) / 2;
+    renderPreview();
+  }
+
+  function clampPan() {
+    var ps = previewSize();
+    var dw = work.canvas.width * view.scale, dh = work.canvas.height * view.scale;
+    view.ox = dw <= ps.w ? (ps.w - dw) / 2 : Math.min(0, Math.max(ps.w - dw, view.ox));
+    view.oy = dh <= ps.h ? (ps.h - dh) / 2 : Math.min(0, Math.max(ps.h - dh, view.oy));
+  }
+
+  function renderPreview() {
+    if (!haveSel()) { clearPreview(); return; }
+    var ps = previewSize();
+    var c = $('pvCanvas'), ctx = c.getContext('2d');
+    ctx.setTransform(ps.dpr, 0, 0, ps.dpr, 0, 0);
+    ctx.fillStyle = '#1c1c1c'; ctx.fillRect(0, 0, ps.w, ps.h);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(work.canvas, view.ox, view.oy,
+      work.canvas.width * view.scale, work.canvas.height * view.scale);
+  }
+
+  function zoomAt(cx, cy, factor) {
+    if (!haveSel()) return;
+    var ix = (cx - view.ox) / view.scale, iy = (cy - view.oy) / view.scale;
+    var ns = view.scale * factor;
+    if (ns < view.fit) ns = view.fit;
+    if (ns > 16) ns = 16;
+    view.scale = ns; view.atFit = Math.abs(ns - view.fit) < 1e-4;
+    view.ox = cx - ix * view.scale; view.oy = cy - iy * view.scale;
+    clampPan(); renderPreview();
+  }
+
+  function updateNav() {
+    var multi = docs.length > 1;
+    $('btnPrev').style.display = multi ? '' : 'none';
+    $('btnNext').style.display = multi ? '' : 'none';
+    $('btnPrev').disabled = !(haveSel() && sel > 0);
+    $('btnNext').disabled = !(haveSel() && sel < docs.length - 1);
+    document.querySelector('.pv-tools').style.display = haveSel() ? 'flex' : 'none';
+  }
+
+  /* ---------- gestures ---------- */
+
+  (function () {
+    var p = $('preview'), pts = {}, pinch = null, drag = null;
+    function rel(e) { var r = p.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+    p.addEventListener('pointerdown', function (e) {
+      p.setPointerCapture(e.pointerId);
+      pts[e.pointerId] = rel(e);
+      var ids = Object.keys(pts);
+      if (ids.length === 2) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, scale: view.scale };
+        drag = null;
+      } else {
+        drag = { x: e.clientX, y: e.clientY, ox: view.ox, oy: view.oy };
+      }
+    });
+    p.addEventListener('pointermove', function (e) {
+      if (!pts[e.pointerId]) return;
+      pts[e.pointerId] = rel(e);
+      var ids = Object.keys(pts);
+      if (pinch && ids.length >= 2) {
+        var a = pts[ids[0]], b = pts[ids[1]];
+        var nd = Math.hypot(a.x - b.x, a.y - b.y);
+        var f = nd / (pinch.d || 1);
+        var ns = pinch.scale * f;
+        if (ns < view.fit) ns = view.fit; if (ns > 16) ns = 16;
+        var ix = (pinch.cx - view.ox) / view.scale, iy = (pinch.cy - view.oy) / view.scale;
+        view.scale = ns; view.atFit = Math.abs(ns - view.fit) < 1e-4;
+        view.ox = pinch.cx - ix * view.scale; view.oy = pinch.cy - iy * view.scale;
+        clampPan(); renderPreview();
+      } else if (drag) {
+        view.ox = drag.ox + (e.clientX - drag.x);
+        view.oy = drag.oy + (e.clientY - drag.y);
+        view.atFit = false; clampPan(); renderPreview();
+      }
+    });
+    function up(e) {
+      delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) pinch = null;
+      if (Object.keys(pts).length === 0) drag = null;
+    }
+    p.addEventListener('pointerup', up);
+    p.addEventListener('pointercancel', up);
+    var lastTap = 0;
+    p.addEventListener('click', function (e) {
+      var now = Date.now();
+      if (now - lastTap < 300) { var r = p.getBoundingClientRect(); if (view.atFit) zoomAt(e.clientX - r.left, e.clientY - r.top, 2.5); else fitPreview(); }
+      lastTap = now;
+    });
+  })();
+
+  /* ---------- processing ---------- */
+
+  async function doProcess(indices, label) {
+    if (!indices.length) { status('Nothing to process.'); return; }
+    busy(true, label);
+    await yield_();
+    var msg = '';
+    for (var n = 0; n < indices.length; n++) {
+      var d = docs[indices[n]];
+      d.detected = true; d.cleaned = true;
+      rebuild(indices[n]);
+      msg = d.msg;
+      await yield_();
+    }
+    busy(false);
+    renderStrip(); showSelected();
+    status(indices.length === 1 ? ('Processed. ' + msg) : ('Processed ' + indices.length + ' page(s).'));
+  }
+
+  /* ---------- save ---------- */
+
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function docToCanvas(d) {
+    var c = document.createElement('canvas');
+    c.width = d.work.width; c.height = d.work.height;
+    c.getContext('2d').putImageData(d.work, 0, 0);
+    return c;
+  }
+  function canvasJpeg(c, q) {
+    return new Promise(function (res) {
+      c.toBlob(function (b) { b.arrayBuffer().then(function (buf) { res({ jpeg: new Uint8Array(buf), w: c.width, h: c.height }); }); }, 'image/jpeg', q || 0.9);
+    });
+  }
+  function canvasPng(c) {
+    return new Promise(function (res) { c.toBlob(function (b) { res(b); }, 'image/png'); });
+  }
+
+  async function savePdf(indices, outName) {
+    if (!indices.length) return;
+    busy(true, 'Building PDF…');
+    await yield_();
+    var pages = [];
+    for (var i = 0; i < indices.length; i++) pages.push(await canvasJpeg(docToCanvas(docs[indices[i]]), 0.9));
+    var blob = E.buildPdf(pages);
+    busy(false);
+    download(blob, outName);
+    status('Saved ' + outName);
+  }
+
+  async function saveImages(indices) {
+    if (!indices.length) return;
+    busy(true, 'Saving…');
+    await yield_();
+    for (var i = 0; i < indices.length; i++) {
+      var d = docs[indices[i]];
+      var b = await canvasPng(docToCanvas(d));
+      download(b, baseName(d.name) + '_scan.png');
+      await yield_();
+    }
+    busy(false);
+    status('Saved ' + indices.length + ' image(s).');
+  }
+
+  var allIdx = function () { return docs.map(function (_, i) { return i; }); };
+
+  /* ---------- wire up ---------- */
+
+  $('inGallery').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
+  $('inStorage').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
+
+  $('chDeskew').addEventListener('click', function () {
+    opt.deskew = !opt.deskew; this.classList.toggle('on', opt.deskew);
+    if (haveSel() && docs[sel].detected) { busy(true, 'Updating…'); yield_().then(function () { rebuild(sel); busy(false); renderStrip(); showSelected(); }); }
+  });
+  $('chBW').addEventListener('click', function () {
+    opt.bw = !opt.bw; this.classList.toggle('on', opt.bw);
+    if (haveSel() && docs[sel].cleaned) { busy(true, 'Updating…'); yield_().then(function () { rebuild(sel); busy(false); renderStrip(); showSelected(); }); }
+  });
+  $('chCombine').addEventListener('click', function () { opt.combine = !opt.combine; this.classList.toggle('on', opt.combine); });
+
+  $('btnProc').addEventListener('click', function () { if (haveSel()) doProcess([sel], 'Processing…'); });
+  $('btnProcAll').addEventListener('click', function () { doProcess(allIdx(), 'Processing all…'); });
+  $('btnReset').addEventListener('click', function () {
+    if (!haveSel()) return;
+    var d = docs[sel]; d.rot = 0; d.detected = false; d.cleaned = false;
+    rebuild(sel); renderStrip(); showSelected(); status('Reverted to original.');
+  });
+
+  function rot(cw) {
+    if (!haveSel()) return;
+    var d = docs[sel]; d.rot = ((d.rot + (cw ? 1 : 3)) % 4 + 4) % 4;
+    busy(true, 'Rotating…');
+    yield_().then(function () { rebuild(sel); busy(false); renderStrip(); showSelected(); });
+  }
+  $('btnRotL').addEventListener('click', function () { rot(false); });
+  $('btnRotR').addEventListener('click', function () { rot(true); });
+
+  $('btnFit').addEventListener('click', fitPreview);
+  $('btnZIn').addEventListener('click', function () { var ps = previewSize(); zoomAt(ps.w / 2, ps.h / 2, 1.25); });
+  $('btnZOut').addEventListener('click', function () { var ps = previewSize(); zoomAt(ps.w / 2, ps.h / 2, 1 / 1.25); });
+  $('btnPrev').addEventListener('click', function () { if (haveSel() && sel > 0) { sel--; renderStrip(); showSelected(); } });
+  $('btnNext').addEventListener('click', function () { if (haveSel() && sel < docs.length - 1) { sel++; renderStrip(); showSelected(); } });
+
+  $('btnPdf').addEventListener('click', function () {
+    if (!haveSel()) return;
+    savePdf([sel], baseName(docs[sel].name) + '_scan.pdf');
+  });
+  $('btnPdfAll').addEventListener('click', function () {
+    if (!docs.length) return;
+    if (opt.combine) savePdf(allIdx(), baseName(docs[0].name) + '_scan_combined.pdf');
+    else (async function () {
+      for (var i = 0; i < docs.length; i++) await savePdf([i], baseName(docs[i].name) + '_scan.pdf');
+    })();
+  });
+  $('btnImg').addEventListener('click', function () { if (haveSel()) saveImages([sel]); });
+  $('btnImgAll').addEventListener('click', function () { saveImages(allIdx()); });
+
+  window.addEventListener('resize', function () { if (view.atFit) fitPreview(); else { clampPan(); renderPreview(); } });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('service-worker.js').catch(function () {}); });
+  }
+
+  updateNav();
+})();
+</script>
+</body>
+</html>
