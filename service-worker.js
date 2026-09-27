@@ -2,6 +2,7 @@
    HTML/navigations: network-first (so updates show as soon as you're online).
    Other same-origin assets: cache-first with background refresh. */
 var CACHE = 'dsr-doc-scanner-v3';
+var OWN = 'dsr-doc-scanner-';   // only ever delete THIS app's old caches – every DSR app shares the github.io origin's cache storage
 var SHELL = ['./', './index.html', './scanengine.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', function (e) {
@@ -10,7 +11,7 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k !== CACHE && k.indexOf(OWN) === 0; }).map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
 
