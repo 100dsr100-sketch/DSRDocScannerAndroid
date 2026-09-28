@@ -1,6 +1,6 @@
 {
   "name": "DSR Doc Scanner",
-  "short_name": "Doc Scanner",
+  "short_name": "DSR Scanner",
   "description": "Scan documents from photos - detect edges, clean up, save as PDF.",
   "start_url": "./index.html",
   "scope": "./",
