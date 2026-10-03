@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "DSR Doc Scanner",
   "short_name": "DSR Scanner",
   "description": "Scan documents from photos - detect edges, clean up, save as PDF.",
