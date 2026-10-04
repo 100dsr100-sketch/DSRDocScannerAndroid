@@ -1,11 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect x="24" y="24" width="464" height="464" rx="64" fill="#111111"/>
-  <rect x="34" y="34" width="444" height="444" rx="56" fill="none" stroke="#FFD700" stroke-width="20"/>
-  <path d="M150 120 H330 L392 182 V392 H150 Z" fill="#FFD700"/>
-  <path d="M330 120 V182 H392 Z" fill="#111111"/>
-  <rect x="182" y="190" width="178" height="16" fill="#111111"/>
-  <rect x="182" y="230" width="178" height="16" fill="#111111"/>
-  <rect x="182" y="270" width="178" height="16" fill="#111111"/>
-  <rect x="182" y="310" width="118" height="16" fill="#111111"/>
-  <line x1="120" y1="352" x2="420" y2="352" stroke="#00C8FF" stroke-width="16"/>
+<!-- gold + one colour accent, matching the DSR Apps widget tile -->
+<rect width="512" height="512" rx="96" fill="#0A0A0A"/>
+<g transform="translate(106,106) scale(12.5)"><path d="M6,2h9l5,5v15H6z" fill="#E8B830"/><path d="M15,2v5h5zM9,7h4v1.5H9zM9,16.5h8v1.5H9z" fill="#0E0E0E"/><path d="M3,11.3h18v1.8H3z" fill="#2EC4B6"/></g>
 </svg>

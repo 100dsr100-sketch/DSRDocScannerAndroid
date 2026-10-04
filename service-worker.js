@@ -1,7 +1,7 @@
 /* DSR Doc Scanner - offline shell cache.
    HTML/navigations: network-first (so updates show as soon as you're online).
    Other same-origin assets: cache-first with background refresh. */
-var CACHE = 'dsr-doc-scanner-v4';
+var CACHE = 'dsr-doc-scanner-v5';
 var OWN = 'dsr-doc-scanner-';   // only ever delete THIS app's old caches – every DSR app shares the github.io origin's cache storage
 var SHELL = ['./', './index.html', './scanengine.js', './manifest.json', './icon.svg'];
 
